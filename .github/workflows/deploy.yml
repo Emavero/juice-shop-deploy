@@ -1,0 +1,26 @@
+name: Deploy OWASP Juice Shop
+
+on:
+  push:
+    branches:
+      - main  # Déclenche la pipeline pour les commits dans la branche "main"
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Pull Docker image
+      run: |
+        docker pull bkimminich/juice-shop:latest
+
+    - name: Run Juice Shop container
+      run: |
+        docker run -d -p 3000:3000 --name juice-shop bkimminich/juice-shop:latest
+
+    - name: Test application
+      run: |
+        curl -I http://localhost:3000 | grep "200 OK"

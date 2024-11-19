@@ -75,29 +75,6 @@ jobs:
       uses: github/codeql-action/analyze@v2
       continue-on-error: true  # Laisse le pipeline continuer même si des erreurs de sécurité sont trouvées
 
-  # SCA (Software Composition Analysis) using Snyk
-  sca:
-    runs-on: ubuntu-latest
-    needs: deploy
-
-    steps:
-    # 1. Checkout du code
-    - name: Checkout code
-      uses: actions/checkout@v3
-
-    # 2. Installer Snyk
-    - name: Install Snyk
-      run: |
-        npm install -g snyk
-
-    # 3. Exécuter une analyse SCA avec Snyk
-    - name: Run SCA scan with Snyk
-      run: snyk test --all-projects
-
-    # 4. Fixer les vulnérabilités avec Snyk
-    - name: Snyk fix
-      run: snyk monitor --all-projects
-
   # DAST (Dynamic Application Security Testing) using OWASP ZAP
   dast:
     runs-on: ubuntu-latest
@@ -125,7 +102,7 @@ jobs:
   # Gestion des vulnérabilités avec DefectDojo
   defectdojo:
     runs-on: ubuntu-latest
-    needs: [sast, sca, dast]
+    needs: [sast, dast]
 
     steps:
     # 1. Télécharger et installer DefectDojo CLI

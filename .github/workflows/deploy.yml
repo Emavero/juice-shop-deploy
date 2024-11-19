@@ -85,8 +85,13 @@ jobs:
       run: |
         VERSION=$(curl -s https://jeremylong.github.io/DependencyCheck/current.txt)
         curl -Ls "https://github.com/jeremylong/DependencyCheck/releases/download/v$VERSION/dependency-check-$VERSION-release.zip" --output dependency-check.zip
-        unzip dependency-check.zip -d dependency-check
-        chmod +x dependency-check/bin/dependency-check.sh
+        if [ -f dependency-check.zip ]; then
+          unzip dependency-check.zip -d dependency-check
+          chmod +x dependency-check/bin/dependency-check.sh
+        else
+          echo "Dependency-Check download failed."
+          exit 1
+        fi
 
     - name: Run SCA (Dependency Check)
       run: |
@@ -104,20 +109,23 @@ jobs:
     needs: deploy
 
     steps:
-    - name: Install OWASP ZAP
+    - name: Install OWASP ZAP via Snap
       run: |
         sudo apt update
-        sudo apt install -y zaproxy
+        sudo snap install zaproxy
+
+    - name: Start OWASP ZAP in daemon mode
+      run: |
+        zaproxy -daemon -host 0.0.0.0 -port 8080
+        sleep 10  # Attendre que ZAP démarre correctement
 
     - name: Run OWASP ZAP Scan
       run: |
-        zaproxy -daemon -host 0.0.0.0 -port 8080
-        sleep 5
-        zap-cli quick-scan --url http://localhost:3000
+        zap-cli quick-scan --self-contained --start-options "-daemon -host 0.0.0.0 -port 8080" --url http://localhost:3000
 
     - name: Generate ZAP HTML Report
       run: |
-        zaproxy -cmd -quickurl http://localhost:3000 -quickout zap-report.html
+        zap-cli report -o zap-report.html -f html
         cat zap-report.html
 
     - name: Upload OWASP ZAP Report

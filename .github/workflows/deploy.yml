@@ -74,3 +74,67 @@ jobs:
     - name: Analyze with CodeQL
       uses: github/codeql-action/analyze@v2
       continue-on-error: true  # Laisse le pipeline continuer même si des erreurs de sécurité sont trouvées
+
+  # SCA (Software Composition Analysis) using Snyk
+  sca:
+    runs-on: ubuntu-latest
+    needs: deploy
+
+    steps:
+    # 1. Checkout du code
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    # 2. Installer Snyk
+    - name: Install Snyk
+      run: |
+        npm install -g snyk
+
+    # 3. Exécuter une analyse SCA avec Snyk
+    - name: Run SCA scan with Snyk
+      run: snyk test --all-projects
+
+    # 4. Fixer les vulnérabilités avec Snyk
+    - name: Snyk fix
+      run: snyk monitor --all-projects
+
+  # DAST (Dynamic Application Security Testing) using OWASP ZAP
+  dast:
+    runs-on: ubuntu-latest
+    needs: deploy
+
+    steps:
+    # 1. Lancer OWASP ZAP pour tester les vulnérabilités dynamiques sur l'application en cours d'exécution
+    - name: Run DAST scan with OWASP ZAP
+      run: |
+        docker run -d --name zaproxy -p 8080:8080 owasp/zap2docker-stable
+        sleep 10  # Attendre que ZAP démarre
+        docker exec zaproxy zap-cli quick-scan --self-contained --url http://localhost:3000
+
+    # 2. Récupérer les résultats de l'analyse
+    - name: Get ZAP report
+      run: docker exec zaproxy zap-cli report -o zap_report.html
+
+    # 3. Télécharger le rapport de l'analyse DAST
+    - name: Upload DAST report
+      uses: actions/upload-artifact@v3
+      with:
+        name: zap-report
+        path: zap_report.html
+
+  # Gestion des vulnérabilités avec DefectDojo
+  defectdojo:
+    runs-on: ubuntu-latest
+    needs: [sast, sca, dast]
+
+    steps:
+    # 1. Télécharger et installer DefectDojo CLI
+    - name: Install DefectDojo CLI
+      run: |
+        curl -sSL https://github.com/DefectDojo/django-DefectDojo/raw/master/requirements.txt -o requirements.txt
+        pip install -r requirements.txt
+
+    # 2. Télécharger les résultats des tests de sécurité dans DefectDojo
+    - name: Upload results to DefectDojo
+      run: |
+        defectdojo upload --file zap_report.html --type "DAST" --engagement "Juice Shop" --test "DAST Scan" --url https://defectdojo.example.com

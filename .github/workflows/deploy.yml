@@ -72,7 +72,7 @@ jobs:
       uses: github/codeql-action/analyze@v2
       continue-on-error: true  # Laisse le pipeline continuer même si des erreurs de sécurité sont trouvées
 
-  # SCA (Software Composition Analysis) - Dépendances
+
  # SCA (Software Composition Analysis) - Dépendances
 sca:
   runs-on: ubuntu-latest

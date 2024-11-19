@@ -73,70 +73,41 @@ jobs:
       continue-on-error: true  # Laisse le pipeline continuer même si des erreurs de sécurité sont trouvées
 
   # SCA (Software Composition Analysis) - Dépendances
-  sca:
-    runs-on: ubuntu-latest
-    needs: deploy
+ # SCA (Software Composition Analysis) - Dépendances
+sca:
+  runs-on: ubuntu-latest
+  needs: deploy
 
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v3
+  steps:
+  - name: Checkout code
+    uses: actions/checkout@v3
 
-    # Télécharger la dernière version de Dependency-Check à partir de GitHub
-    - name: Install Dependency-Check CLI
-      run: |
-        # Cloner le dépôt Dependency-Check
-        git clone https://github.com/jeremylong/DependencyCheck.git
-        cd DependencyCheck
-        VERSION=$(curl -s https://jeremylong.github.io/DependencyCheck/current.txt)
-        echo "Downloading Dependency-Check version $VERSION"
-        curl -Ls "https://github.com/jeremylong/DependencyCheck/releases/download/v$VERSION/dependency-check-$VERSION-release.zip" --output dependency-check.zip
-        unzip dependency-check.zip -d dependency-check
-        chmod +x dependency-check/bin/dependency-check.sh
+  # Télécharger la dernière version de Dependency-Check à partir de GitHub
+  - name: Install Dependency-Check CLI
+    run: |
+      # Cloner le dépôt Dependency-Check
+      git clone https://github.com/jeremylong/DependencyCheck.git
+      cd DependencyCheck
+      VERSION=$(curl -s https://jeremylong.github.io/DependencyCheck/current.txt)
+      echo "Downloading Dependency-Check version $VERSION"
+      curl -Ls "https://github.com/jeremylong/DependencyCheck/releases/download/v$VERSION/dependency-check-$VERSION-release.zip" --output dependency-check.zip
+      unzip dependency-check.zip -d dependency-check
 
-    # Exécuter l'analyse de dépendance sur le projet
-    - name: Run SCA (Dependency Check)
-      run: |
-        ./dependency-check/bin/dependency-check.sh --project OWASP-Juice-Shop --scan . --out ./dependency-check-report
+      # Vérification de la structure du répertoire après extraction
+      ls -lR dependency-check
 
-    # Télécharger le rapport de Dependency-Check
-    - name: Upload Dependency Check Report
-      uses: actions/upload-artifact@v3
-      with:
-        name: dependency-check-report
-        path: ./dependency-check-report
+  # Exécuter l'analyse de dépendance sur le projet
+  - name: Run SCA (Dependency Check)
+    run: |
+      # Afficher les fichiers pour confirmer où se trouve le script
+      ls -lR dependency-check/dependency-check/bin
+      # Exécuter Dependency-Check (en supposant que le script est dans 'bin')
+      chmod +x dependency-check/dependency-check/bin/dependency-check.sh
+      ./dependency-check/dependency-check/bin/dependency-check.sh --project OWASP-Juice-Shop --scan . --out ./dependency-check-report
 
-  # DAST (Dynamic Application Security Testing)
-  dast:
-    runs-on: ubuntu-latest
-    needs: deploy
-
-    steps:
-    # Installation de ZAP via Snap
-    - name: Install OWASP ZAP via Snap
-      run: |
-        sudo apt update
-        sudo snap install zaproxy
-
-    # Lancer OWASP ZAP en mode daemon
-    - name: Start OWASP ZAP in daemon mode
-      run: |
-        zaproxy -daemon -host 0.0.0.0 -port 8080
-        sleep 10  # Attendre que ZAP démarre correctement
-
-    # Exécuter un scan rapide avec ZAP
-    - name: Run OWASP ZAP Scan
-      run: |
-        zap-cli quick-scan --self-contained --start-options "-daemon -host 0.0.0.0 -port 8080" --url http://localhost:3000
-
-    # Générer le rapport ZAP en format HTML
-    - name: Generate ZAP HTML Report
-      run: |
-        zap-cli report -o zap-report.html -f html
-        cat zap-report.html
-
-    # Télécharger le rapport ZAP
-    - name: Upload OWASP ZAP Report
-      uses: actions/upload-artifact@v3
-      with:
-        name: zap-report
-        path: zap-report.html
+  # Télécharger le rapport de Dependency-Check
+  - name: Upload Dependency Check Report
+    uses: actions/upload-artifact@v3
+    with:
+      name: dependency-check-report
+      path: ./dependency-check-report

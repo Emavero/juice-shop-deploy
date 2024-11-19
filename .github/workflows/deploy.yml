@@ -1,4 +1,4 @@
-name: CI/CD et DevSecOps pour OWASP Juice Shop
+name: CI/CD et Sécurité pour OWASP Juice Shop
 
 on:
   push:
@@ -6,12 +6,11 @@ on:
       - master  # Déclenche le workflow pour les commits sur la branche "master"
 
 jobs:
-  # Job 1: Déploiement de Juice Shop
   deploy:
     runs-on: ubuntu-latest
 
     steps:
-      # Étape 1 : Vérifier si Juice Shop est déjà en cours d'exécution
+      # Étapes de déploiement de Juice Shop (comme dans votre configuration précédente)
       - name: Vérifier si Juice Shop est déjà en cours d'exécution
         id: check-container
         run: |
@@ -21,20 +20,17 @@ jobs:
             echo "running=false" >> $GITHUB_ENV
           fi
 
-      # Étape 2 : Nettoyer le conteneur existant si nécessaire
       - name: Nettoyer le conteneur existant
         if: env.running == 'true'
         run: |
           docker stop juice-shop
           docker rm juice-shop
 
-      # Étape 3 : Lancer un nouveau conteneur Juice Shop
-      - name: Lancer Juice Shop
+      - name: Lancer le conteneur Juice Shop
         run: |
           docker pull bkimminich/juice-shop:latest
           docker run -d -p 3000:3000 --name juice-shop bkimminich/juice-shop:latest
 
-      # Étape 4 : Vérifier que Juice Shop est accessible
       - name: Attendre que Juice Shop démarre
         run: |
           for i in {1..30}; do
@@ -46,83 +42,70 @@ jobs:
             sleep 2;
           done
 
-      # Étape 5 : Tester que l'application est en ligne
       - name: Tester l'application
         run: |
           curl -I http://localhost:3000 | grep "200 OK"
 
-  # Job 2: SAST avec CodeQL
   sast:
     runs-on: ubuntu-latest
     needs: deploy
-
     steps:
-      # Étape 1 : Télécharger le code source
-      - name: Checkout du dépôt
-        uses: actions/checkout@v3
-
-      # Étape 2 : Initialiser CodeQL
+      # Initialiser CodeQL avec les bonnes configurations
       - name: Initialiser CodeQL
         uses: github/codeql-action/init@v2
         with:
           languages: javascript
+          # Utilisez un répertoire spécifique si nécessaire
+          # If you want to specify a specific directory, add the following line:
+          # repository: ./path/to/juice-shop
 
-      # Étape 3 : Lancer l'analyse SAST avec CodeQL
+      # Analyser le code source de Juice Shop
       - name: Analyser avec CodeQL
         uses: github/codeql-action/analyze@v2
 
-  # Job 3: SCA avec OWASP Dependency Check
   sca:
     runs-on: ubuntu-latest
     needs: deploy
 
     steps:
-      # Étape 1 : Télécharger le code source
-      - name: Checkout du dépôt
-        uses: actions/checkout@v3
-
-      # Étape 2 : Installer OWASP Dependency Check
+      # Installer OWASP Dependency Check
       - name: Installer OWASP Dependency Check
         run: |
           curl -LO https://github.com/jeremylong/DependencyCheck/releases/download/v8.3.1/dependency-check-8.3.1-release.zip
           unzip dependency-check-8.3.1-release.zip -d dependency-check
 
-      # Étape 3 : Lancer Dependency Check
-      - name: Lancer OWASP Dependency Check
+      - name: Analyser les dépendances avec OWASP Dependency Check
         run: |
           ./dependency-check/bin/dependency-check.sh --project "Juice Shop" --scan . --format ALL --out ./dependency-check-report
 
-      # Étape 4 : Télécharger les rapports de Dependency Check
-      - name: Télécharger le rapport de Dependency Check
+      - name: Télécharger le rapport Dependency Check
         uses: actions/upload-artifact@v3
         with:
           name: dependency-check-report
           path: ./dependency-check-report
 
-  # Job 4: DAST avec OWASP ZAP
   dast:
     runs-on: ubuntu-latest
     needs: deploy
 
     steps:
-      # Étape 1 : Installer OWASP ZAP
       - name: Installer OWASP ZAP
         run: sudo apt-get update && sudo apt-get install -y zaproxy
 
-      # Étape 2 : Lancer un scan OWASP ZAP
-      - name: Lancer OWASP ZAP
+      - name: Démarrer OWASP ZAP
         run: |
           zap.sh -daemon -host 0.0.0.0 -port 8080 -config api.addrs.addr.name=.* -config api.addrs.addr.regex=true
-          sleep 15  # Temps pour démarrer ZAP
+          sleep 15
+
+      - name: Exécuter un scan rapide avec ZAP
+        run: |
           zap-cli quick-scan --self-contained --start-options "-config api.addrs.addr.name=.* -config api.addrs.addr.regex=true" http://localhost:3000
 
-      # Étape 3 : Générer un rapport OWASP ZAP
-      - name: Générer un rapport ZAP
+      - name: Générer le rapport ZAP
         run: |
           zap-cli report -o zap-report.html -f html
 
-      # Étape 4 : Télécharger le rapport OWASP ZAP
-      - name: Télécharger le rapport OWASP ZAP
+      - name: Télécharger le rapport ZAP
         uses: actions/upload-artifact@v3
         with:
           name: zap-report

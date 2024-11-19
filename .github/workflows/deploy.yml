@@ -1,4 +1,4 @@
-name: Deploy OWASP Juice Shop
+name: My Custom Workflow Name
 
 on:
   push:

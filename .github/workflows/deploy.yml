@@ -3,7 +3,7 @@ name: My Custom Workflow Name
 on:
   push:
     branches:
-      - main  # Déclenche la pipeline pour les commits dans la branche "main"
+      - master  # Déclenche la pipeline pour les commits dans la branche "main"
 
 jobs:
   deploy:

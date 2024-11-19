@@ -83,7 +83,7 @@ jobs:
 
     - name: Install Dependency-Check CLI
       run: |
-        VERSION=$(curl -s https://jeremylong.github.io/DependencyCheck/current.txt)
+        VERSION=$(curl -s https://github.com/jeremylong/DependencyCheck)
         curl -Ls "https://github.com/jeremylong/DependencyCheck/releases/download/v$VERSION/dependency-check-$VERSION-release.zip" --output dependency-check.zip
         if [ -f dependency-check.zip ]; then
           unzip dependency-check.zip -d dependency-check

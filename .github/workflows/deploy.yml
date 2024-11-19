@@ -112,11 +112,11 @@ jobs:
       run: |
         zaproxy -daemon -host 0.0.0.0 -port 8080
         sleep 5
-        zap-cli quick-scan --url http://localhost:3000
+        zap-cli quick-scan --url http://localhost:3001
 
     - name: Generate ZAP HTML Report
       run: |
-        zaproxy -cmd -quickurl http://localhost:3000 -quickout zap-report.html
+        zaproxy -cmd -quickurl http://localhost:3001 -quickout zap-report.html
         cat zap-report.html
 
     - name: Upload OWASP ZAP Report

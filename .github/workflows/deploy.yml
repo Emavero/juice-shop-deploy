@@ -1,4 +1,4 @@
-name: CI/CD Pipeline with SAST
+name: CI/CD Pipeline with Security Testing
 
 on:
   push:
@@ -53,3 +53,24 @@ jobs:
     # 6. Liste des conteneurs actifs pour débogage
     - name: List running containers
       run: docker ps
+
+  # SAST (Static Application Security Testing) using CodeQL
+  sast:
+    runs-on: ubuntu-latest
+    needs: deploy
+
+    steps:
+    # 1. Checkout du code
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    # 2. Configurer CodeQL
+    - name: Set up CodeQL
+      uses: github/codeql-action/init@v2
+      with:
+        languages: javascript  # Utilisez javascript ou autre si nécessaire
+
+    # 3. Analyser avec CodeQL
+    - name: Analyze with CodeQL
+      uses: github/codeql-action/analyze@v2
+      continue-on-error: true  # Laisse le pipeline continuer même si des erreurs de sécurité sont trouvées

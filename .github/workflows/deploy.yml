@@ -19,8 +19,8 @@ jobs:
 
     - name: Run Juice Shop container
       run: |
-        docker run -d -p 3000:3000 --name juice-shop bkimminich/juice-shop:latest
+        docker run -d -p 3001:3000 --name juice-shop bkimminich/juice-shop:latest
 
     - name: Test application
       run: |
-        curl -I http://localhost:3000 | grep "200 OK"
+        curl -I http://localhost:3001 | grep "200 OK"

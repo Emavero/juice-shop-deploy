@@ -1,26 +1,55 @@
-name: My Custom Workflow Name
+name: Deploy OWASP Juice Shop
 
 on:
   push:
     branches:
-      - master  # Déclenche la pipeline pour les commits dans la branche "main"
+      - master  # Déclenche le workflow pour les commits sur la branche "master"
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v3
-
-    - name: Pull Docker image
+    # Étape 1 : Vérifier si un conteneur Juice Shop existe déjà
+    - name: Check if Juice Shop is already running
+      id: check-container
       run: |
-        docker pull bkimminich/juice-shop:latest
+        if docker ps --filter "name=juice-shop" --filter "status=running" | grep juice-shop; then
+          echo "running=true" >> $GITHUB_ENV
+        else
+          echo "running=false" >> $GITHUB_ENV
+        fi
 
+    # Étape 2 : Stopper et supprimer l'ancien conteneur si nécessaire
+    - name: Clean up existing container
+      if: env.running == 'true'
+      run: |
+        docker stop juice-shop
+        docker rm juice-shop
+
+    # Étape 3 : Lancer un nouveau conteneur
     - name: Run Juice Shop container
+      if: env.running == 'false'
       run: |
-        docker run -d -p 3001:3000 --name juice-shop bkimminich/juice-shop:latest
+        docker run -d -p 3000:3000 --name juice-shop bkimminich/juice-shop:latest
 
+    # Étape 4 : Attendre que Juice Shop démarre
+    - name: Wait for Juice Shop to start
+      run: |
+        for i in {1..30}; do
+          if curl -I http://localhost:3000 2>/dev/null | grep "200 OK"; then
+            echo "Juice Shop is ready!";
+            break;
+          fi;
+          echo "Waiting for Juice Shop...";
+          sleep 2;
+        done
+
+    # Étape 5 : Tester l'application
     - name: Test application
       run: |
-        curl -I http://localhost:3001 | grep "200 OK"
+        curl -I http://localhost:3000 | grep "200 OK"
+
+    # Étape 6 : Afficher les conteneurs actifs
+    - name: List running containers
+      run: docker ps

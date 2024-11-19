@@ -83,9 +83,10 @@ jobs:
 
     - name: Install Dependency-Check CLI
       run: |
-        curl -L https://github.com/jeremydmiller/dotnet-dependency-check/releases/download/6.1.0/dependency-check-cli-6.1.0.zip -o dependency-check.zip
-        unzip dependency-check.zip
-        chmod +x dependency-check
+        VERSION=$(curl -s https://jeremylong.github.io/DependencyCheck/current.txt)
+        curl -Ls "https://github.com/jeremylong/DependencyCheck/releases/download/v$VERSION/dependency-check-$VERSION-release.zip" --output dependency-check.zip
+        unzip dependency-check.zip -d dependency-check
+        chmod +x dependency-check/bin/dependency-check.sh
 
     - name: Run SCA (Dependency Check)
       run: |

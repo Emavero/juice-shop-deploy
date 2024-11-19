@@ -10,49 +10,49 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    # 1. Vérifier d'abord si un conteneur Juice Shop existe déjà
-    - name: Check if Juice Shop is already running
-      id: check-container
-      run: |
-        if docker ps --filter "name=juice-shop" --filter "status=running" | grep juice-shop; then
-          echo "running=true" >> $GITHUB_ENV
-        else
-          echo "running=false" >> $GITHUB_ENV
-        fi
+      # 1. Vérifier d'abord si un conteneur Juice Shop existe déjà
+      - name: Check if Juice Shop is already running
+        id: check-container
+        run: |
+          if docker ps --filter "name=juice-shop" --filter "status=running" | grep juice-shop; then
+            echo "running=true" >> $GITHUB_ENV
+          else
+            echo "running=false" >> $GITHUB_ENV
+          fi
 
-    # 2. Arrêter et supprimer l'ancien conteneur si nécessaire
-    - name: Clean up existing container
-      if: env.running == 'true'
-      run: |
-        docker stop juice-shop
-        docker rm juice-shop
+      # 2. Arrêter et supprimer l'ancien conteneur si nécessaire
+      - name: Clean up existing container
+        if: env.running == 'true'
+        run: |
+          docker stop juice-shop
+          docker rm juice-shop
 
-    # 3. Lancer un nouveau conteneur
-    - name: Run Juice Shop container
-      if: env.running == 'false'
-      run: |
-        docker run -d -p 3000:3000 --name juice-shop bkimminich/juice-shop:latest
+      # 3. Lancer un nouveau conteneur
+      - name: Run Juice Shop container
+        if: env.running == 'false'
+        run: |
+          docker run -d -p 3000:3000 --name juice-shop bkimminich/juice-shop:latest
 
-    # 4. Attendre que Juice Shop démarre
-    - name: Wait for Juice Shop to start
-      run: |
-        for i in {1..30}; do
-          if curl -I http://localhost:3000 2>/dev/null | grep "200 OK"; then
-            echo "Juice Shop is ready!";
-            break;
-          fi;
-          echo "Waiting for Juice Shop...";
-          sleep 2;
-        done
+      # 4. Attendre que Juice Shop démarre
+      - name: Wait for Juice Shop to start
+        run: |
+          for i in {1..30}; do
+            if curl -I http://localhost:3000 2>/dev/null | grep "200 OK"; then
+              echo "Juice Shop is ready!";
+              break;
+            fi;
+            echo "Waiting for Juice Shop...";
+            sleep 2;
+          done
 
-    # 5. Tester l'application pour vérifier qu'elle fonctionne
-    - name: Test application
-      run: |
-        curl -I http://localhost:3000 | grep "200 OK"
+      # 5. Tester l'application pour vérifier qu'elle fonctionne
+      - name: Test application
+        run: |
+          curl -I http://localhost:3000 | grep "200 OK"
 
-    # 6. Liste des conteneurs actifs pour débogage
-    - name: List running containers
-      run: docker ps
+      # 6. Liste des conteneurs actifs pour débogage
+      - name: List running containers
+        run: docker ps
 
   # SAST (Static Application Security Testing) using CodeQL
   sast:
@@ -60,30 +60,32 @@ jobs:
     needs: deploy
 
     steps:
-    # 1. Checkout du code
-    - name: Checkout code
-      uses: actions/checkout@v3
+      # 1. Checkout du code
+      - name: Checkout code
+        uses: actions/checkout@v3
 
-    # 2. Configurer CodeQL
-    - name: Set up CodeQL
-      uses: github/codeql-action/init@v2
-      with:
-        languages: javascript  # Utilisez javascript ou autre si nécessaire
+      # 2. Configurer CodeQL
+      - name: Set up CodeQL
+        uses: github/codeql-action/init@v2
+        with:
+          languages: javascript  # Utilisez javascript ou autre si nécessaire
 
-    # 3. Analyser avec CodeQL
-    - name: Analyze with CodeQL
-      uses: github/codeql-action/analyze@v2
-      continue-on-error: true  # Laisse le pipeline continuer même si des erreurs de sécurité sont trouvées
+      # 3. Analyser avec CodeQL
+      - name: Analyze with CodeQL
+        uses: github/codeql-action/analyze@v2
+        continue-on-error: true  # Laisse le pipeline continuer même si des erreurs de sécurité sont trouvées
 
   # DAST (Dynamic Application Security Testing) using OWASP ZAP
   zap_scan:
     runs-on: ubuntu-latest
     name: Scan the webapplication
+
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v3
         with:
           ref: master
+
       - name: ZAP Scan
         uses: zaproxy/action-baseline@v0.13.0
         with:
@@ -96,16 +98,15 @@ jobs:
   # Gestion des vulnérabilités avec DefectDojo
   defectdojo:
     runs-on: ubuntu-latest
-    needs: [sast, dast]
+    needs: [sast, zap_scan]
 
     steps:
-    # 1. Télécharger et installer DefectDojo CLI
-    - name: Install DefectDojo CLI
-      run: |
-        curl -sSL https://github.com/DefectDojo/django-DefectDojo/raw/master/requirements.txt -o requirements.txt
-        pip install -r requirements.txt
+      # 1. Télécharger et installer DefectDojo CLI
+      - name: Install DefectDojo CLI
+        run: |
+          pip install defectdojo_api
 
-    # 2. Télécharger les résultats des tests de sécurité dans DefectDojo
-    - name: Upload results to DefectDojo
-      run: |
-        defectdojo upload --file zap_report.html --type "DAST" --engagement "Juice Shop" --test "DAST Scan" --url https://defectdojo.example.com
+      # 2. Télécharger les résultats des tests de sécurité dans DefectDojo
+      - name: Upload results to DefectDojo
+        run: |
+          defectdojo upload --file zap_report.html --type "DAST" --engagement "Juice Shop" --test "DAST Scan" --url https://defectdojo.example.com

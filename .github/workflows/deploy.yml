@@ -81,22 +81,24 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v3
 
+    # Télécharger la dernière version de Dependency-Check à partir de GitHub
     - name: Install Dependency-Check CLI
       run: |
-        VERSION=$(curl -s https://github.com/jeremylong/DependencyCheck)
+        # Cloner le dépôt Dependency-Check
+        git clone https://github.com/jeremylong/DependencyCheck.git
+        cd DependencyCheck
+        VERSION=$(curl -s https://jeremylong.github.io/DependencyCheck/current.txt)
+        echo "Downloading Dependency-Check version $VERSION"
         curl -Ls "https://github.com/jeremylong/DependencyCheck/releases/download/v$VERSION/dependency-check-$VERSION-release.zip" --output dependency-check.zip
-        if [ -f dependency-check.zip ]; then
-          unzip dependency-check.zip -d dependency-check
-          chmod +x dependency-check/bin/dependency-check.sh
-        else
-          echo "Dependency-Check download failed."
-          exit 1
-        fi
+        unzip dependency-check.zip -d dependency-check
+        chmod +x dependency-check/bin/dependency-check.sh
 
+    # Exécuter l'analyse de dépendance sur le projet
     - name: Run SCA (Dependency Check)
       run: |
         ./dependency-check/bin/dependency-check.sh --project OWASP-Juice-Shop --scan . --out ./dependency-check-report
 
+    # Télécharger le rapport de Dependency-Check
     - name: Upload Dependency Check Report
       uses: actions/upload-artifact@v3
       with:
@@ -109,25 +111,30 @@ jobs:
     needs: deploy
 
     steps:
+    # Installation de ZAP via Snap
     - name: Install OWASP ZAP via Snap
       run: |
         sudo apt update
         sudo snap install zaproxy
 
+    # Lancer OWASP ZAP en mode daemon
     - name: Start OWASP ZAP in daemon mode
       run: |
         zaproxy -daemon -host 0.0.0.0 -port 8080
         sleep 10  # Attendre que ZAP démarre correctement
 
+    # Exécuter un scan rapide avec ZAP
     - name: Run OWASP ZAP Scan
       run: |
         zap-cli quick-scan --self-contained --start-options "-daemon -host 0.0.0.0 -port 8080" --url http://localhost:3000
 
+    # Générer le rapport ZAP en format HTML
     - name: Generate ZAP HTML Report
       run: |
         zap-cli report -o zap-report.html -f html
         cat zap-report.html
 
+    # Télécharger le rapport ZAP
     - name: Upload OWASP ZAP Report
       uses: actions/upload-artifact@v3
       with:

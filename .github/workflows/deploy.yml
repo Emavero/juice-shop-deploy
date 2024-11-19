@@ -107,7 +107,7 @@ jobs:
     # 1. Lancer OWASP ZAP pour tester les vulnérabilités dynamiques sur l'application en cours d'exécution
     - name: Run DAST scan with OWASP ZAP
       run: |
-        docker run -d --name zaproxy -p 8080:8080 owasp/zap2docker-stable
+        docker run -d --name zaproxy -p 8080:8080 ghcr.io/zaproxy/zaproxy:stable
         sleep 10  # Attendre que ZAP démarre
         docker exec zaproxy zap-cli quick-scan --self-contained --url http://localhost:3000
 

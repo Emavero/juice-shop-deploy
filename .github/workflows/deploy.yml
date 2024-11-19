@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    # Étape 1 : Vérifier si un conteneur Juice Shop existe déjà
+    # Vérifier d'abord si un conteneur Juice Shop existe déjà
     - name: Check if Juice Shop is already running
       id: check-container
       run: |
@@ -20,20 +20,20 @@ jobs:
           echo "running=false" >> $GITHUB_ENV
         fi
 
-    # Étape 2 : Stopper et supprimer l'ancien conteneur si nécessaire
+    # Arreter et supprimer l'ancien conteneur si nécessaire
     - name: Clean up existing container
       if: env.running == 'true'
       run: |
         docker stop juice-shop
         docker rm juice-shop
 
-    # Étape 3 : Lancer un nouveau conteneur
+    # Lancer un nouveau conteneur
     - name: Run Juice Shop container
       if: env.running == 'false'
       run: |
         docker run -d -p 3000:3000 --name juice-shop bkimminich/juice-shop:latest
 
-    # Étape 4 : Attendre que Juice Shop démarre
+    # Attendre que Juice Shop démarre
     - name: Wait for Juice Shop to start
       run: |
         for i in {1..30}; do
@@ -45,7 +45,7 @@ jobs:
           sleep 2;
         done
 
-    # Étape 5 : Tester l'application
+    # Tester l'application
     - name: Test application
       run: |
         curl -I http://localhost:3000 | grep "200 OK"

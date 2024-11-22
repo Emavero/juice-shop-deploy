@@ -1,16 +1,14 @@
 name: CI/CD Pipeline with Security Testing
 
-on:
-  push:
-    branches:
-      - master  # Déclenche le pipeline pour les commits dans la branche "master"
+on: [push]
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    name: Deploy Application
 
     steps:
-      # 1. Vérifier si un conteneur Juice Shop existe déjà
+      # 1. Vérifier si Juice Shop est déjà en cours d'exécution
       - name: Check if Juice Shop is already running
         id: check-container
         run: |
@@ -20,20 +18,20 @@ jobs:
             echo "running=false" >> $GITHUB_ENV
           fi
 
-      # 2. Arrêter et supprimer l'ancien conteneur si nécessaire
+      # 2. Arrêter et nettoyer les anciens conteneurs
       - name: Clean up existing container
         if: env.running == 'true'
         run: |
           docker stop juice-shop
           docker rm juice-shop
 
-      # 3. Lancer un nouveau conteneur Juice Shop
+      # 3. Lancer Juice Shop
       - name: Run Juice Shop container
         if: env.running == 'false'
         run: |
           docker run -d -p 3000:3000 --name juice-shop bkimminich/juice-shop:latest
 
-      # 4. Attendre que Juice Shop démarre
+      # 4. Vérifier que l'application est opérationnelle
       - name: Wait for Juice Shop to start
         run: |
           for i in {1..30}; do
@@ -45,67 +43,45 @@ jobs:
             sleep 2;
           done
 
-      # 5. Vérifier que l'application est en ligne
-      - name: Test application
-        run: |
-          curl -I http://localhost:3000 | grep "200 OK"
-
-      # 6. Lister les conteneurs actifs pour débogage
-      - name: List running containers
-        run: docker ps
-
-  # SAST (Static Application Security Testing) avec CodeQL
   sast:
     runs-on: ubuntu-latest
+    name: Static Application Security Testing
+
     needs: deploy
 
     steps:
-      # 1. Checkout du code
+      # 1. Cloner le dépôt
       - name: Checkout code
         uses: actions/checkout@v3
 
-      # 2. Configurer CodeQL
+      # 2. Configuration de CodeQL
       - name: Set up CodeQL
         uses: github/codeql-action/init@v2
         with:
-          languages: javascript  # Utilisez "javascript" ou un autre langage si nécessaire
+          languages: javascript
 
-      # 3. Analyser avec CodeQL
+      # 3. Analyse de sécurité statique avec CodeQL
       - name: Analyze with CodeQL
         uses: github/codeql-action/analyze@v2
-        continue-on-error: true  # Laisse le pipeline continuer même si des erreurs de sécurité sont trouvées
+        continue-on-error: true
 
-  # DAST (Dynamic Application Security Testing) avec OWASP ZAP
   zap_scan:
     runs-on: ubuntu-latest
+    name: Dynamic Application Security Testing with ZAP
+
     needs: deploy
-    name: Scan the web application
 
     steps:
-      # 1. Checkout du code
-      - name: Checkout
+      # 1. Cloner le dépôt
+      - name: Checkout code
         uses: actions/checkout@v4
 
-      # 2. Exécuter un scan OWASP ZAP complet
-      - name: ZAP Full Scan
+      # 2. Scanner avec OWASP ZAP
+      - name: ZAP Scan
         uses: zaproxy/action-full-scan@v0.12.0
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           docker_name: 'ghcr.io/zaproxy/zaproxy:stable'
-          target: 'http://localhost:3000' # URL de Juice Shop
-          rules_file_name: '.zap/rules.tsv' # Assurez-vous que ce fichier existe dans votre dépôt
+          target: 'http://localhost:3000'  # URL de Juice Shop
+          rules_file_name: '.zap/rules.tsv'
           cmd_options: '-a'
-
-      # 3. Extraire le rapport OWASP ZAP
-      - name: Download ZAP Report
-        run: |
-          mkdir -p zap-reports
-          docker cp $(docker ps -q -f "ancestor=ghcr.io/zaproxy/zaproxy:stable"):/zap/wrk zap-reports/
-          ls -l zap-reports
-
-      # 4. Télécharger les rapports comme artefacts
-      - name: Upload ZAP Reports
-        uses: actions/upload-artifact@v3
-        with:
-          name: zap-reports
-          path: zap-reports

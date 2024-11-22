@@ -44,7 +44,7 @@ jobs:
             sleep 2;
           done
 
-  # Job 2: Test de sécurité statique (SAST) avec CodeQL
+  # Job 2: Test  de sécurité statique (SAST) avec CodeQL
   sast:
     runs-on: ubuntu-latest
     name: Static Application Security Testing

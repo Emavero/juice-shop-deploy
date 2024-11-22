@@ -95,18 +95,4 @@ jobs:
           rules_file_name: '.zap/rules.tsv'
           cmd_options: '-a'
 
-  # Gestion des vulnérabilités avec DefectDojo
-  defectdojo:
-    runs-on: ubuntu-latest
-    needs: [sast, zap_scan]
-
-    steps:
-      # 1. Télécharger et installer DefectDojo CLI
-      - name: Install DefectDojo CLI
-        run: |
-          pip install defectdojo_api
-
-      # 2. Télécharger les résultats des tests de sécurité dans DefectDojo
-      - name: Upload results to DefectDojo
-        run: |
-          defectdojo upload --file zap_report.html --type "DAST" --engagement "Juice Shop" --test "DAST Scan" --url https://defectdojo.example.com
+  

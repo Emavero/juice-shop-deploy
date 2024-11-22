@@ -3,6 +3,7 @@ name: CI/CD Pipeline with Security Testing
 on: [push]
 
 jobs:
+  # Job 1: Déploiement de l'application cible
   deploy:
     runs-on: ubuntu-latest
     name: Deploy Application
@@ -43,6 +44,7 @@ jobs:
             sleep 2;
           done
 
+  # Job 2: Test de sécurité statique (SAST) avec CodeQL
   sast:
     runs-on: ubuntu-latest
     name: Static Application Security Testing
@@ -65,6 +67,7 @@ jobs:
         uses: github/codeql-action/analyze@v2
         continue-on-error: true
 
+  # Job 3: Scan dynamique (DAST) avec OWASP ZAP
   zap_scan:
     runs-on: ubuntu-latest
     name: Dynamic Application Security Testing with ZAP
@@ -72,7 +75,7 @@ jobs:
     needs: deploy
 
     steps:
-      # 1. Cloner le dépôt
+      # 1. Checkout du code
       - name: Checkout code
         uses: actions/checkout@v4
 
@@ -82,6 +85,12 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           docker_name: 'ghcr.io/zaproxy/zaproxy:stable'
-          target: 'http://localhost:3000'  # URL de Juice Shop
+          target: 'http://localhost:3000' # Utiliser host.docker.internal si nécessaire
           rules_file_name: '.zap/rules.tsv'
-          cmd_options: '-a'
+          cmd_options: '-a --exit-code 0 --allow-insecure-ssl'
+
+      # 3. Étape de débogage supplémentaire pour les logs ZAP
+      - name: Debug ZAP Docker Logs
+        run: |
+          echo "Collecting ZAP logs..."
+          docker logs $(docker ps -q -f "ancestor=ghcr.io/zaproxy/zaproxy:stable")

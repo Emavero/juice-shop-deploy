@@ -89,7 +89,7 @@ jobs:
           rules_file_name: '.zap/rules.tsv'
           cmd_options: '-a --exit-code 0 --allow-insecure-ssl'
 
-      # 3. Étape de débogage supplémentaire pour les logs ZAP
+      # 3. Étape de débogage  supplémentaire pour les logs ZAP
       - name: Debug ZAP Docker Logs
         run: |
           echo "Collecting ZAP logs..."

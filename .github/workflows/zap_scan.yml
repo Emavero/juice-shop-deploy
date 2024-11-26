@@ -1,175 +1,98 @@
-name: DevSecOps CI/CD Pipeline for OWASP Juice Shop
+name: OWASP Juice Shop DevSecOps Pipeline
 
 on:
   push:
-    branches:
-      - master
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
 
 env:
-  JUICE_SHOP_IMAGE: bkimminich/juice-shop
-  CONTAINER_NAME: juice-shop
+  DOCKER_IMAGE: bkimminich/juice-shop
   DEFECTDOJO_URL: https://defectdojo.example.com
 
 jobs:
-  # 1. Pipeline de Configuration CI
-  deployment:
+  # Job de récupération et de construction de l'image
+  build:
     runs-on: ubuntu-latest
     steps:
-      # Gestion avancée du conteneur
-      - name: Prepare Container Environment
-        run: |
-          # Vérifier et gérer les conteneurs existants
-          if docker ps --filter "name=${{ env.CONTAINER_NAME }}" --filter "status=running" | grep ${{ env.CONTAINER_NAME }}; then
-            echo "Arrêt du conteneur existant"
-            docker stop ${{ env.CONTAINER_NAME }}
-            docker rm ${{ env.CONTAINER_NAME }}
-          fi
-      
-      # Déploiement du conteneur
-      - name: Deploy Juice Shop Container
-        run: |
-          docker pull ${{ env.JUICE_SHOP_IMAGE }}:latest
-          docker run -d \
-            -p 3000:3000 \
-            --name ${{ env.CONTAINER_NAME }} \
-            ${{ env.JUICE_SHOP_IMAGE }}:latest
-      
-      # Vérification du démarrage
-      - name: Validate Juice Shop Startup
-        timeout-minutes: 2
-        run: |
-          max_attempts=300000
-          attempt=0
-          
-          while [ $attempt -lt $max_attempts ]; do
-            if curl -s -f http://localhost:3000/rest/health 2>/dev/null; then
-              echo "✅ Juice Shop est opérationnel!"
-              exit 0
-            fi
-            
-            echo "En attente du démarrage... (Tentative $((attempt+1))/$max_attempts)"
-            sleep 5
-            ((attempt++))
-          done
-          
-          echo "❌ Échec du démarrage de Juice Shop"
-          exit 1
-
-  # 2. Tests de Sécurité DevSecOps
-  security-testing:
-    needs: deployment
-    runs-on: ubuntu-latest
-    steps:
-      # Checkout du code
-      - name: Checkout Code
+      - name: Checkout du code
         uses: actions/checkout@v3
+      
+      - name: Configuration de Docker
+        uses: docker/setup-buildx-action@v2
+      
+      - name: Pull de l'image Docker Juice Shop
+        run: docker pull ${{ env.DOCKER_IMAGE }}
+      
+      - name: Scan de sécurité de l'image conteneur
+        uses: anchore/scan-action@v3
+        with:
+          image: ${{ env.DOCKER_IMAGE }}
+          severity-cutoff: high
 
-      # A. Tests de Sécurité Statique (SAST)
-      - name: SAST avec CodeQL
+  # Job de tests de sécurité statique (SAST)
+  sast-scan:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout du code
+        uses: actions/checkout@v3
+      
+      - name: Analyse CodeQL
         uses: github/codeql-action/init@v2
         with:
           languages: javascript, typescript
-          queries: security-and-quality
       
       - name: Analyse CodeQL
         uses: github/codeql-action/analyze@v2
-        continue-on-error: true
 
-      # B. Analyse des Composants (SCA)
-      - name: Software Composition Analysis
+  # Job d'analyse des composants (SCA)
+  dependency-check:
+    needs: sast-scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout du code
+        uses: actions/checkout@v3
+      
+      - name: Scan des dépendances
         uses: dependency-check/Dependency-Check_Action@main
         with:
-          project: 'OWASP Juice Shop'
+          project: 'Juice Shop'
           path: '.'
-          format: 'HTML, JSON, XML'
-          outputDirectory: ${{ github.workspace }}/dependency-reports
+          format: 'HTML, JSON'
 
-      # C. Tests de Sécurité Dynamique (DAST)
-      - name: DAST avec OWASP ZAP
-        uses: zaproxy/action-baseline@v0.13.0
+  # Job de tests dynamiques de sécurité (DAST)
+  dast-scan:
+    needs: dependency-check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Démarrage du conteneur Juice Shop
+        run: docker run -d -p 3000:3000 ${{ env.DOCKER_IMAGE }}
+      
+      - name: Scan OWASP ZAP
+        uses: zaproxy/action-baseline@v0.7.0
         with:
           target: 'http://localhost:3000'
-          rules_file_name: '.zap/rules.tsv'
-          cmd_options: '-a -j -m 5 -T 5'
+          fail_action: false
 
-      # D. Scan de Sécurité des Conteneurs
-      - name: Container Security Scan
-        uses: anchore/scan-action@v3
-        with:
-          image: ${{ env.JUICE_SHOP_IMAGE }}:latest
-          severity-cutoff: high
-
-  # 3. Gestion des Vulnérabilités
-  vulnerability-management:
-    needs: security-testing
+  # Job de gestion et rapport des vulnérabilités  
+  vulnerability-report:
+    needs: [dast-scan]
     runs-on: ubuntu-latest
     steps:
-      - name: Préparer les Rapports de Vulnérabilités
+      - name: Envoi des résultats à DefectDojo
         run: |
-          mkdir -p vulnerability-reports
+          # Script personnalisé pour envoyer les résultats des scans à DefectDojo
+          curl -X POST ${{ env.DEFECTDOJO_URL }}/api/v2/findings/ \
+            -H "Authorization: Token ${{ secrets.DEFECTDOJO_API_TOKEN }}" \
+            -F "file=@zap-results.json"
 
-      - name: Exporter vers DefectDojo
-        run: |
-          # Script simplifié d'exportation vers DefectDojo
-          curl -X POST ${{ env.DEFECTDOJO_URL }}/api/v2/import-scan/ \
-            -H "Authorization: Token ${{ secrets.DEFECTDOJO_TOKEN }}" \
-            -F "file=@zap-baseline-report.json" \
-            -F "scan_type=ZAP Baseline Scan" \
-            -F "engagement=/api/v2/engagements/1/" \
-            -F "product=/api/v2/products/1/"
-
-  # 4. Redéploiement Automatique
-  auto-redeploy:
-    needs: vulnerability-management
-    runs-on: ubuntu-latest
-    if: github.event_name == 'push'
-    steps:
-      - name: Redéploiement avec Dernières Modifications
-        run: |
-          docker pull ${{ env.JUICE_SHOP_IMAGE }}:latest
-          docker stop ${{ env.CONTAINER_NAME }} || true
-          docker rm ${{ env.CONTAINER_NAME }} || true
-          docker run -d \
-            -p 3000:3000 \
-            --name ${{ env.CONTAINER_NAME }} \
-            ${{ env.JUICE_SHOP_IMAGE }}:latest
-
-  # 5. Génération de Rapport
-  generate-report:
-    needs: auto-redeploy
+  # Déploiement final
+  deploy:
+    needs: [vulnerability-report]
     runs-on: ubuntu-latest
     steps:
-      - name: Créer Rapport de Sécurité Consolidé
+      - name: Déploiement sur serveur
         run: |
-          mkdir -p reports
-          
-          echo "# Rapport de Sécurité OWASP Juice Shop" > reports/security_report.md
-          echo "## Informations Générales" >> reports/security_report.md
-          echo "- **Date:** $(date '+%Y-%m-%d %H:%M:%S')" >> reports/security_report.md
-          echo "- **Commit:** ${{ github.sha }}" >> reports/security_report.md
-          echo "- **Branche:** ${{ github.ref_name }}" >> reports/security_report.md
-          
-          echo "## Résultats des Tests de Sécurité" >> reports/security_report.md
-          echo "### 1. Analyse Statique (SAST)" >> reports/security_report.md
-          echo "- Outil: CodeQL" >> reports/security_report.md
-          echo "- Langages analysés: JavaScript, TypeScript" >> reports/security_report.md
-          
-          echo "### 2. Analyse des Composants (SCA)" >> reports/security_report.md
-          echo "- Outil: Dependency Check" >> reports/security_report.md
-          
-          echo "### 3. Tests Dynamiques (DAST)" >> reports/security_report.md
-          echo "- Outil: OWASP ZAP" >> reports/security_report.md
-          
-          echo "### 4. Sécurité des Conteneurs" >> reports/security_report.md
-          echo "- Outil: Anchore" >> reports/security_report.md
-      
-      - name: Uploader Rapport
-        uses: actions/upload-artifact@v3
-        with:
-          name: security-report
-          path: reports/security_report.md
-
-# Configuration par défaut
-defaults:
-  run:
-    shell: bash
+          # Logique de déploiement spécifique 
+          ssh user@server "docker pull ${{ env.DOCKER_IMAGE }} && docker restart juice-shop"

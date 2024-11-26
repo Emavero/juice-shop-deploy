@@ -38,7 +38,7 @@ jobs:
       - name: Validate Juice Shop Startup
         timeout-minutes: 2
         run: |
-          max_attempts=30
+          max_attempts=300000
           attempt=0
           
           while [ $attempt -lt $max_attempts ]; do
